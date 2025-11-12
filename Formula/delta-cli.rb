@@ -7,7 +7,8 @@ class DeltaCli < Formula
   homepage "https://github.com/nile-agi/delta"
   license "MIT"
   # Use head version for now (release version will be added when v1.0.0 is tagged)
-  head "https://github.com/nile-agi/delta.git", branch: "main", submodules: true
+  # Note: submodules handled manually in install method to avoid nested repo issues
+  head "https://github.com/nile-agi/delta.git", branch: "main"
   
   # Release version (uncomment when v1.0.0 is released)
   # url "https://github.com/nile-agi/delta/archive/refs/tags/v1.0.0.tar.gz"
@@ -27,8 +28,16 @@ class DeltaCli < Formula
   end
 
   def install
-    # Ensure submodules are initialized and updated (only llama.cpp, ignore others)
-    system "git", "submodule", "update", "--init", "--recursive", "vendor/llama.cpp"
+    # Initialize and update only the llama.cpp submodule
+    # This avoids issues with nested repos like homebrew-delta-cli
+    system "git", "submodule", "update", "--init", "vendor/llama.cpp"
+    
+    # Update llama.cpp's submodules if it has any
+    if Dir.exist?("vendor/llama.cpp/.gitmodules")
+      cd "vendor/llama.cpp" do
+        system "git", "submodule", "update", "--init", "--recursive"
+      end
+    end
     
     # Create build directory
     mkdir "build" do
