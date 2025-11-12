@@ -27,8 +27,8 @@ class DeltaCli < Formula
   end
 
   def install
-    # Ensure submodules are initialized and updated
-    system "git", "submodule", "update", "--init", "--recursive"
+    # Ensure submodules are initialized and updated (only llama.cpp, ignore others)
+    system "git", "submodule", "update", "--init", "--recursive", "vendor/llama.cpp"
     
     # Create build directory
     mkdir "build" do
