@@ -32,10 +32,13 @@ class DeltaCli < Formula
     # This avoids issues with nested repos like homebrew-delta-cli
     system "git", "submodule", "update", "--init", "vendor/llama.cpp"
     
-    # Update llama.cpp's submodules if it has any
+    # Update llama.cpp's submodules if it has any, but skip problematic nested repos
     if Dir.exist?("vendor/llama.cpp/.gitmodules")
       cd "vendor/llama.cpp" do
-        system "git", "submodule", "update", "--init", "--recursive"
+        # Remove any nested .git directories that might cause issues (like ios-cmake)
+        system "bash", "-c", "find . -name '.git' -type d ! -path './.git/*' -exec rm -rf {} + 2>/dev/null || true"
+        # Update submodules, but don't fail if some are missing
+        system "git", "submodule", "update", "--init", "--recursive" rescue nil
       end
     end
     
@@ -57,9 +60,16 @@ class DeltaCli < Formula
     bin.install "build/delta"
     bin.install "build/delta-server"
 
-    # Install web UI
-    if Dir.exist?("vendor/llama.cpp/tools/server/public")
-      share.install "vendor/llama.cpp/tools/server/public" => "delta-cli/webui"
+    # Install web UI if it exists (it may need to be built first)
+    webui_public = "vendor/llama.cpp/tools/server/public"
+    webui_source = "vendor/llama.cpp/tools/server/webui"
+    
+    if Dir.exist?(webui_public) && (File.exist?("#{webui_public}/index.html") || File.exist?("#{webui_public}/index.html.gz"))
+      share.install webui_public => "delta-cli/webui"
+    elsif Dir.exist?(webui_source)
+      # Web UI source exists but not built - skip installation
+      # The server will find it at runtime if needed
+      opoo "Web UI not built, skipping installation. Server will use source files if available."
     end
   end
 
