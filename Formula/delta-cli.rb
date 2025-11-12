@@ -5,10 +5,14 @@
 class DeltaCli < Formula
   desc "Offline AI Assistant powered by llama.cpp"
   homepage "https://github.com/nile-agi/delta"
-  url "https://github.com/nile-agi/delta/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "PLACEHOLDER_SHA256"
   license "MIT"
+  # Use head version for now (release version will be added when v1.0.0 is tagged)
   head "https://github.com/nile-agi/delta.git", branch: "main", submodules: true
+  
+  # Release version (uncomment when v1.0.0 is released)
+  # url "https://github.com/nile-agi/delta/archive/refs/tags/v1.0.0.tar.gz"
+  # sha256 "PLACEHOLDER_SHA256"
+  # version "1.0.0"
 
   depends_on "cmake" => :build
   depends_on "curl" => :build
