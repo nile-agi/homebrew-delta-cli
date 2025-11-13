@@ -61,15 +61,25 @@ class DeltaCli < Formula
     bin.install "build/delta-server"
 
     # Install web UI if it exists (it may need to be built first)
+    # The web UI is optional - the server can work without it or find it at runtime
     webui_public = "vendor/llama.cpp/tools/server/public"
-    webui_source = "vendor/llama.cpp/tools/server/webui"
+    webui_index = "#{webui_public}/index.html"
+    webui_index_gz = "#{webui_public}/index.html.gz"
     
-    if Dir.exist?(webui_public) && (File.exist?("#{webui_public}/index.html") || File.exist?("#{webui_public}/index.html.gz"))
-      share.install webui_public => "delta-cli/webui"
-    elsif Dir.exist?(webui_source)
-      # Web UI source exists but not built - skip installation
-      # The server will find it at runtime if needed
-      opoo "Web UI not built, skipping installation. Server will use source files if available."
+    # Only install if directory exists AND has index file
+    if Dir.exist?(webui_public) && (File.exist?(webui_index) || File.exist?(webui_index_gz))
+      begin
+        share.install webui_public => "delta-cli/webui"
+      rescue => e
+        # If installation fails, just warn - it's optional
+        opoo "Could not install web UI: #{e.message}"
+        opoo "The server will work without it or find the source files at runtime."
+      end
+    else
+      # Web UI not built - this is fine, server will work without it
+      # The server code can find the webui source directory at runtime if needed
+      ohai "Web UI not found at #{webui_public}, skipping installation."
+      ohai "The server will work without it or find the source files at runtime."
     end
   end
 
