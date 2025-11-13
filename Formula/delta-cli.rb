@@ -7,51 +7,71 @@ class DeltaCli < Formula
   homepage "https://github.com/nile-agi/delta"
   license "MIT"
   
-  # Use pre-built binaries - no git, no cloning, no building
-  # Using latest release until v1.0.0 is available
-  version "latest"
-  
+  # Use head version - automatically clones and builds
+  # This is completely automatic - users don't need to know about git
+  head "https://github.com/nile-agi/delta.git", branch: "main", submodules: false
+
+  depends_on "cmake" => :build
+  depends_on "curl" => :build
+  depends_on "pkg-config" => :build
+
   on_macos do
-    if Hardware::CPU.arm?
-      url "https://github.com/nile-agi/delta/releases/latest/download/delta-cli-macos-arm64.tar.gz"
-      sha256 :no_check
-    else
-      url "https://github.com/nile-agi/delta/releases/latest/download/delta-cli-macos-x86_64.tar.gz"
-      sha256 :no_check
-    end
+    depends_on :macos
   end
 
   on_linux do
-    if Hardware::CPU.arm?
-      url "https://github.com/nile-agi/delta/releases/latest/download/delta-cli-linux-aarch64.tar.gz"
-      sha256 :no_check
-    else
-      url "https://github.com/nile-agi/delta/releases/latest/download/delta-cli-linux-x86_64.tar.gz"
-      sha256 :no_check
-    end
+    depends_on "gcc" => :build
   end
 
   def install
-    # Extract pre-built binaries - no git, no cloning, no building required
-    # The tarball structure may vary, so we'll handle different structures
-    if Dir.exist?("delta-cli-latest")
-      bin.install "delta-cli-latest/delta" => "delta"
-      bin.install "delta-cli-latest/delta-server" => "delta-server"
-      if Dir.exist?("delta-cli-latest/webui")
-        share.install "delta-cli-latest/webui" => "delta-cli/webui"
+    # Initialize and update only the llama.cpp submodule
+    # This is automatic - users don't need to do anything
+    system "git", "submodule", "update", "--init", "vendor/llama.cpp"
+    
+    # Update llama.cpp's submodules if it has any, but skip problematic nested repos
+    if Dir.exist?("vendor/llama.cpp/.gitmodules")
+      cd "vendor/llama.cpp" do
+        # Remove any nested .git directories that might cause issues (like ios-cmake)
+        system "bash", "-c", "find . -name '.git' -type d ! -path './.git/*' -exec rm -rf {} + 2>/dev/null || true"
+        # Update submodules, but don't fail if some are missing
+        system "git", "submodule", "update", "--init", "--recursive" rescue nil
       end
-    elsif Dir.glob("delta-cli-*").any?
-      # Find the extracted directory
-      extracted_dir = Dir.glob("delta-cli-*").first
-      bin.install "#{extracted_dir}/delta" => "delta"
-      bin.install "#{extracted_dir}/delta-server" => "delta-server"
-      if Dir.exist?("#{extracted_dir}/webui")
-        share.install "#{extracted_dir}/webui" => "delta-cli/webui"
+    end
+    
+    # Create build directory and build
+    # All automatic - users just wait
+    mkdir "build" do
+      system "cmake", "..",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    "-DGGML_METAL=#{OS.mac? ? "ON" : "OFF"}",
+                    "-DLLAMA_CUDA=OFF",
+                    "-DLLAMA_VULKAN=OFF",
+                    "-DLLAMA_HIPBLAS=OFF",
+                    "-DBUILD_SERVER=ON",
+                    "-DUSE_CURL=ON",
+                    *std_cmake_args
+      system "make", "-j#{ENV.make_jobs}"
+    end
+
+    # Install binaries
+    bin.install "build/delta"
+    bin.install "build/delta-server"
+
+    # Install web UI if it exists (optional)
+    webui_public = "vendor/llama.cpp/tools/server/public"
+    webui_index = "#{webui_public}/index.html"
+    webui_index_gz = "#{webui_public}/index.html.gz"
+    
+    if Dir.exist?(webui_public) && (File.exist?(webui_index) || File.exist?(webui_index_gz))
+      begin
+        share.install webui_public => "delta-cli/webui"
+      rescue => e
+        opoo "Could not install web UI: #{e.message}"
+        opoo "The server will work without it or find the source files at runtime."
       end
     else
-      # Fallback: try to find binaries in root of tarball
-      bin.install "delta" if File.exist?("delta")
-      bin.install "delta-server" if File.exist?("delta-server")
+      ohai "Web UI not found at #{webui_public}, skipping installation."
+      ohai "The server will work without it or find the source files at runtime."
     end
   end
 
@@ -80,7 +100,6 @@ class DeltaCli < Formula
       end
     end
     
-    # Also create alias as backup
     ohai "Delta CLI installed successfully!"
     ohai "To use 'delta' command, run: source #{shell_config}" if shell_config
     ohai "Or use full path: /opt/homebrew/bin/delta"
