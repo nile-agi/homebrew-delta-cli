@@ -1,31 +1,91 @@
-# homebrew-delta-cli
+# Delta CLI Homebrew Tap
 
-Homebrew tap for [Delta CLI](https://github.com/nile-agi/delta) - Offline AI Assistant powered by llama.cpp
+Simple installation of Delta CLI via Homebrew.
 
-## Installation
+## Quick Install
 
 ```bash
-brew install nile-agi/delta-cli/delta-cli
+brew tap nile-agi/delta-cli && brew install --HEAD nile-agi/delta-cli/delta-cli
 ```
 
-## What is Delta CLI?
+**Important:** 
+- Use `--HEAD` flag because the formula uses the latest code from the main branch
+- Use the full formula path `nile-agi/delta-cli/delta-cli` because Homebrew core has a package called `git-delta` that provides a `delta` command
+- Everything is automatic - git cloning, building, and installation happen automatically
+- Users don't need to know about git - it all happens behind the scenes
 
-Delta CLI is an open-source, offline-first AI assistant that runs large language models (LLMs) directly on your device. Built on top of llama.cpp, it provides a simple command-line interface to interact with AI models without requiring internet connectivity.
+## What Happens During Installation
 
-## Features
+The installation is completely automatic:
+- ✅ Automatically clones the repository (git happens in background)
+- ✅ Automatically installs all dependencies (cmake, curl, pkg-config)
+- ✅ Automatically builds from source (~40 seconds)
+- ✅ Automatically configures PATH
+- ✅ Creates alias to override conflicting commands
 
-- 🔒 100% Offline
-- ⚡ High Performance (GPU acceleration)
-- 🌐 Cross-Platform
-- 🎨 Beautiful Terminal UI
-- 📦 Easy Model Management
+## Usage
 
-## Documentation
+After installation:
 
-- [Main Repository](https://github.com/nile-agi/delta)
-- [Installation Guide](https://github.com/nile-agi/delta/blob/main/INSTALL.md)
-- [Quick Start](https://github.com/nile-agi/delta/blob/main/QUICK_START.md)
+```bash
+# Reload shell configuration (if needed)
+source ~/.zshrc  # or restart terminal
 
-## License
+# Check version
+delta --version
 
-MIT
+# Download a model
+delta pull qwen2.5:0.5b
+
+# Start interactive mode
+delta
+
+# Start web server
+delta server
+```
+
+## What Gets Installed
+
+- `delta` - Main CLI application
+- `delta-server` - Web server for browser interface
+- Web UI (if available)
+
+## Installation Location
+
+- Binaries: `/opt/homebrew/bin/delta` (Apple Silicon) or `/usr/local/bin/delta` (Intel)
+- Configuration: Automatically added to `~/.zshrc` or `~/.bash_profile`
+
+## Troubleshooting
+
+### Command Not Found
+
+If `delta` command is not found after installation:
+
+```bash
+# Reload shell configuration
+source ~/.zshrc
+
+# Or use full path
+/opt/homebrew/bin/delta --version
+```
+
+### PATH Conflicts
+
+If you have another `delta` command (like llvm's delta), the installer automatically:
+1. Configures PATH to prioritize Homebrew's bin directory
+2. Creates an alias: `alias delta='/opt/homebrew/bin/delta'`
+
+Just run `source ~/.zshrc` to activate.
+
+## Uninstall
+
+```bash
+brew uninstall delta-cli
+brew untap nile-agi/delta-cli
+```
+
+## More Information
+
+- Project: https://github.com/nile-agi/delta
+- Issues: https://github.com/nile-agi/delta/issues
+- Documentation: https://github.com/nile-agi/delta/blob/main/README.md
