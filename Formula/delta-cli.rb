@@ -6,85 +6,80 @@ class DeltaCli < Formula
   desc "Offline AI Assistant powered by llama.cpp"
   homepage "https://github.com/nile-agi/delta"
   license "MIT"
-  # Use head version for now (release version will be added when v1.0.0 is tagged)
-  # Note: submodules handled manually in install method to avoid nested repo issues
-  head "https://github.com/nile-agi/delta.git", branch: "main"
   
-  # Release version (uncomment when v1.0.0 is released)
-  # url "https://github.com/nile-agi/delta/archive/refs/tags/v1.0.0.tar.gz"
-  # sha256 "PLACEHOLDER_SHA256"
-  # version "1.0.0"
-
-  depends_on "cmake" => :build
-  depends_on "curl" => :build
-  depends_on "pkg-config" => :build
-
+  # Use pre-built binaries - no git, no cloning, no building
+  version "1.0.0"
+  
   on_macos do
-    depends_on :macos
+    if Hardware::CPU.arm?
+      url "https://github.com/nile-agi/delta/releases/download/v#{version}/delta-cli-macos-arm64.tar.gz"
+      sha256 :no_check  # TODO: Update with actual SHA256 when release is available
+    else
+      url "https://github.com/nile-agi/delta/releases/download/v#{version}/delta-cli-macos-x86_64.tar.gz"
+      sha256 :no_check  # TODO: Update with actual SHA256 when release is available
+    end
   end
 
   on_linux do
-    depends_on "gcc" => :build
+    if Hardware::CPU.arm?
+      url "https://github.com/nile-agi/delta/releases/download/v#{version}/delta-cli-linux-aarch64.tar.gz"
+      sha256 :no_check  # TODO: Update with actual SHA256 when release is available
+    else
+      url "https://github.com/nile-agi/delta/releases/download/v#{version}/delta-cli-linux-x86_64.tar.gz"
+      sha256 :no_check  # TODO: Update with actual SHA256 when release is available
+    end
   end
 
   def install
-    # Initialize and update only the llama.cpp submodule
-    # This avoids issues with nested repos like homebrew-delta-cli
-    system "git", "submodule", "update", "--init", "vendor/llama.cpp"
-    
-    # Update llama.cpp's submodules if it has any, but skip problematic nested repos
-    if Dir.exist?("vendor/llama.cpp/.gitmodules")
-      cd "vendor/llama.cpp" do
-        # Remove any nested .git directories that might cause issues (like ios-cmake)
-        system "bash", "-c", "find . -name '.git' -type d ! -path './.git/*' -exec rm -rf {} + 2>/dev/null || true"
-        # Update submodules, but don't fail if some are missing
-        system "git", "submodule", "update", "--init", "--recursive" rescue nil
-      end
-    end
-    
-    # Create build directory
-    mkdir "build" do
-      system "cmake", "..",
-                    "-DCMAKE_BUILD_TYPE=Release",
-                    "-DGGML_METAL=#{OS.mac? ? "ON" : "OFF"}",
-                    "-DLLAMA_CUDA=OFF",
-                    "-DLLAMA_VULKAN=OFF",
-                    "-DLLAMA_HIPBLAS=OFF",
-                    "-DBUILD_SERVER=ON",
-                    "-DUSE_CURL=ON",
-                    *std_cmake_args
-      system "make", "-j#{ENV.make_jobs}"
-    end
-
-    # Install binaries
-    bin.install "build/delta"
-    bin.install "build/delta-server"
-
-    # Install web UI if it exists (it may need to be built first)
-    # The web UI is optional - the server can work without it or find it at runtime
-    webui_public = "vendor/llama.cpp/tools/server/public"
-    webui_index = "#{webui_public}/index.html"
-    webui_index_gz = "#{webui_public}/index.html.gz"
-    
-    # Only install if directory exists AND has index file
-    if Dir.exist?(webui_public) && (File.exist?(webui_index) || File.exist?(webui_index_gz))
-      begin
-        share.install webui_public => "delta-cli/webui"
-      rescue => e
-        # If installation fails, just warn - it's optional
-        opoo "Could not install web UI: #{e.message}"
-        opoo "The server will work without it or find the source files at runtime."
+    # Extract pre-built binaries - no git, no cloning, no building required
+    # The tarball structure should be: delta-cli-{version}/delta, delta-cli-{version}/delta-server
+    if Dir.exist?("delta-cli-#{version}")
+      bin.install "delta-cli-#{version}/delta" => "delta"
+      bin.install "delta-cli-#{version}/delta-server" => "delta-server"
+      
+      # Install web UI if present in the tarball
+      if Dir.exist?("delta-cli-#{version}/webui")
+        share.install "delta-cli-#{version}/webui" => "delta-cli/webui"
       end
     else
-      # Web UI not built - this is fine, server will work without it
-      # The server code can find the webui source directory at runtime if needed
-      ohai "Web UI not found at #{webui_public}, skipping installation."
-      ohai "The server will work without it or find the source files at runtime."
+      # Fallback: try to find binaries in root of tarball
+      bin.install "delta" if File.exist?("delta")
+      bin.install "delta-server" if File.exist?("delta-server")
     end
+  end
+
+  def post_install
+    # Ensure Homebrew bin comes first in PATH to avoid conflicts with llvm's delta
+    shell = ENV["SHELL"] || "/bin/zsh"
+    shell_config = if shell.include?("zsh")
+      File.expand_path("~/.zshrc")
+    elsif shell.include?("bash")
+      File.expand_path("~/.bash_profile")
+    else
+      nil
+    end
+    
+    if shell_config && File.exist?(shell_config)
+      # Check if PATH fix already exists
+      path_fix = '# Delta CLI PATH fix - ensure Homebrew bin comes first'
+      unless File.read(shell_config).include?(path_fix)
+        File.open(shell_config, "a") do |f|
+          f.puts "\n#{path_fix}"
+          f.puts 'export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$(echo $PATH | tr ":" "\n" | grep -v "^/opt/homebrew/bin$" | grep -v "^/opt/homebrew/sbin$" | tr "\n" ":" | sed "s/:$//")"'
+          f.puts 'alias delta="/opt/homebrew/bin/delta"  # Delta CLI alias to override llvm delta'
+        end
+        ohai "Added PATH configuration to #{shell_config}"
+        ohai "Run 'source #{shell_config}' or restart your terminal to use 'delta' command"
+      end
+    end
+    
+    # Also create alias as backup
+    ohai "Delta CLI installed successfully!"
+    ohai "To use 'delta' command, run: source #{shell_config}" if shell_config
+    ohai "Or use full path: /opt/homebrew/bin/delta"
   end
 
   test do
     system "#{bin}/delta", "--version"
   end
 end
-
