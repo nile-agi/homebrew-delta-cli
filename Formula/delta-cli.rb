@@ -8,38 +8,45 @@ class DeltaCli < Formula
   license "MIT"
   
   # Use pre-built binaries - no git, no cloning, no building
-  version "1.0.0"
+  # Using latest release until v1.0.0 is available
+  version "latest"
   
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/nile-agi/delta/releases/download/v#{version}/delta-cli-macos-arm64.tar.gz"
-      sha256 :no_check  # TODO: Update with actual SHA256 when release is available
+      url "https://github.com/nile-agi/delta/releases/latest/download/delta-cli-macos-arm64.tar.gz"
+      sha256 :no_check
     else
-      url "https://github.com/nile-agi/delta/releases/download/v#{version}/delta-cli-macos-x86_64.tar.gz"
-      sha256 :no_check  # TODO: Update with actual SHA256 when release is available
+      url "https://github.com/nile-agi/delta/releases/latest/download/delta-cli-macos-x86_64.tar.gz"
+      sha256 :no_check
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/nile-agi/delta/releases/download/v#{version}/delta-cli-linux-aarch64.tar.gz"
-      sha256 :no_check  # TODO: Update with actual SHA256 when release is available
+      url "https://github.com/nile-agi/delta/releases/latest/download/delta-cli-linux-aarch64.tar.gz"
+      sha256 :no_check
     else
-      url "https://github.com/nile-agi/delta/releases/download/v#{version}/delta-cli-linux-x86_64.tar.gz"
-      sha256 :no_check  # TODO: Update with actual SHA256 when release is available
+      url "https://github.com/nile-agi/delta/releases/latest/download/delta-cli-linux-x86_64.tar.gz"
+      sha256 :no_check
     end
   end
 
   def install
     # Extract pre-built binaries - no git, no cloning, no building required
-    # The tarball structure should be: delta-cli-{version}/delta, delta-cli-{version}/delta-server
-    if Dir.exist?("delta-cli-#{version}")
-      bin.install "delta-cli-#{version}/delta" => "delta"
-      bin.install "delta-cli-#{version}/delta-server" => "delta-server"
-      
-      # Install web UI if present in the tarball
-      if Dir.exist?("delta-cli-#{version}/webui")
-        share.install "delta-cli-#{version}/webui" => "delta-cli/webui"
+    # The tarball structure may vary, so we'll handle different structures
+    if Dir.exist?("delta-cli-latest")
+      bin.install "delta-cli-latest/delta" => "delta"
+      bin.install "delta-cli-latest/delta-server" => "delta-server"
+      if Dir.exist?("delta-cli-latest/webui")
+        share.install "delta-cli-latest/webui" => "delta-cli/webui"
+      end
+    elsif Dir.glob("delta-cli-*").any?
+      # Find the extracted directory
+      extracted_dir = Dir.glob("delta-cli-*").first
+      bin.install "#{extracted_dir}/delta" => "delta"
+      bin.install "#{extracted_dir}/delta-server" => "delta-server"
+      if Dir.exist?("#{extracted_dir}/webui")
+        share.install "#{extracted_dir}/webui" => "delta-cli/webui"
       end
     else
       # Fallback: try to find binaries in root of tarball
