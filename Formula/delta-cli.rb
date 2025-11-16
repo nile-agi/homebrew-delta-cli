@@ -42,11 +42,10 @@ class DeltaCli < Formula
       end
     end
     
-    # Use already built web UI from public/ if available, otherwise build from assets/
-    webui_built = Dir.exist?("public") && (File.exist?("public/index.html") || File.exist?("public/index.html.gz"))
-    
-    if !webui_built && Dir.exist?("assets")
-      ohai "Web UI not found in public/, building from assets/..."
+    # Always build web UI from assets/ directory (Delta web UI, not llama.cpp)
+    # This ensures users get the Delta-branded web UI, not the original llama.cpp one
+    if Dir.exist?("assets")
+      ohai "Building Delta web UI from assets/..."
       cd "assets" do
         # Check if node_modules exists, if not install dependencies
         unless Dir.exist?("node_modules")
@@ -55,9 +54,10 @@ class DeltaCli < Formula
         # Build the web UI (outputs to ../public)
         system "npm", "run", "build"
       end
-      ohai "Web UI built successfully"
-    elsif webui_built
-      ohai "Using already built web UI from public/"
+      ohai "Delta web UI built successfully"
+    else
+      opoo "assets/ directory not found. Web UI will not be available."
+      opoo "The server will work without it or find the source files at runtime."
     end
     
     # Ensure we're back in the source directory
@@ -83,17 +83,21 @@ class DeltaCli < Formula
     bin.install "build/delta-server"
 
     # Install web UI from public/ directory (built from assets/)
-    if Dir.exist?("public") && (File.exist?("public/index.html") || File.exist?("public/index.html.gz"))
+    # Ensure we're back in source directory before checking for public/
+    Dir.chdir(source_dir)
+    
+    public_path = File.join(source_dir, "public")
+    if Dir.exist?(public_path) && (File.exist?(File.join(public_path, "index.html")) || File.exist?(File.join(public_path, "index.html.gz")))
       begin
-        share.install "public" => "delta-cli/webui"
-        ohai "Web UI installed from public/"
+        share.install public_path => "delta-cli/webui"
+        ohai "Delta web UI installed from public/"
       rescue => e
         opoo "Could not install web UI: #{e.message}"
         opoo "The server will work without it or find the source files at runtime."
       end
     else
-      ohai "Web UI not found in public/, skipping installation."
-      ohai "The server will work without it or find the source files at runtime."
+      opoo "Web UI not found in public/ after build. Skipping installation."
+      opoo "The server will work without it or find files at runtime."
     end
   end
 
