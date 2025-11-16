@@ -42,9 +42,11 @@ class DeltaCli < Formula
       end
     end
     
-    # Build web UI from assets/ directory before building C++ code
-    if Dir.exist?("assets")
-      ohai "Building web UI from assets/..."
+    # Use already built web UI from public/ if available, otherwise build from assets/
+    webui_built = Dir.exist?("public") && (File.exist?("public/index.html") || File.exist?("public/index.html.gz"))
+    
+    if !webui_built && Dir.exist?("assets")
+      ohai "Web UI not found in public/, building from assets/..."
       cd "assets" do
         # Check if node_modules exists, if not install dependencies
         unless Dir.exist?("node_modules")
@@ -53,6 +55,9 @@ class DeltaCli < Formula
         # Build the web UI (outputs to ../public)
         system "npm", "run", "build"
       end
+      ohai "Web UI built successfully"
+    elsif webui_built
+      ohai "Using already built web UI from public/"
     end
     
     # Ensure we're back in the source directory
