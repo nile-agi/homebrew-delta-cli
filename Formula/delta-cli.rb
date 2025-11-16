@@ -89,8 +89,12 @@ class DeltaCli < Formula
     public_path = File.join(source_dir, "public")
     if Dir.exist?(public_path) && (File.exist?(File.join(public_path, "index.html")) || File.exist?(File.join(public_path, "index.html.gz")))
       begin
-        share.install public_path => "delta-cli/webui"
-        ohai "Delta web UI installed from public/"
+        # Install all files from public/ to share/delta-cli/webui
+        # Use mkdir_p to ensure the directory exists, then copy files
+        webui_dest = share/"delta-cli"/"webui"
+        webui_dest.mkpath
+        cp_r Dir.glob("#{public_path}/*"), webui_dest, verbose: false
+        ohai "Delta web UI installed to #{webui_dest}"
       rescue => e
         opoo "Could not install web UI: #{e.message}"
         opoo "The server will work without it or find the source files at runtime."
