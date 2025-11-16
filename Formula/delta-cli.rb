@@ -14,6 +14,7 @@ class DeltaCli < Formula
   depends_on "cmake" => :build
   depends_on "curl" => :build
   depends_on "pkg-config" => :build
+  depends_on "node" => :build
 
   on_macos do
     depends_on :macos
@@ -38,6 +39,20 @@ class DeltaCli < Formula
       end
     end
     
+    # Build web UI from assets/ directory before building C++ code
+    if Dir.exist?("assets")
+      ohai "Building web UI from assets/..."
+      cd "assets" do
+        # Check if node_modules exists, if not install dependencies
+        unless Dir.exist?("node_modules")
+          system "npm", "install"
+        end
+        # Build the web UI (outputs to ../public)
+        system "npm", "run", "build"
+      end
+      cd ".."
+    end
+    
     # Create build directory and build
     # All automatic - users just wait
     mkdir "build" do
@@ -57,20 +72,17 @@ class DeltaCli < Formula
     bin.install "build/delta"
     bin.install "build/delta-server"
 
-    # Install web UI if it exists (optional)
-    webui_public = "vendor/llama.cpp/tools/server/public"
-    webui_index = "#{webui_public}/index.html"
-    webui_index_gz = "#{webui_public}/index.html.gz"
-    
-    if Dir.exist?(webui_public) && (File.exist?(webui_index) || File.exist?(webui_index_gz))
+    # Install web UI from public/ directory (built from assets/)
+    if Dir.exist?("public") && (File.exist?("public/index.html") || File.exist?("public/index.html.gz"))
       begin
-        share.install webui_public => "delta-cli/webui"
+        share.install "public" => "delta-cli/webui"
+        ohai "Web UI installed from public/"
       rescue => e
         opoo "Could not install web UI: #{e.message}"
         opoo "The server will work without it or find the source files at runtime."
       end
     else
-      ohai "Web UI not found at #{webui_public}, skipping installation."
+      ohai "Web UI not found in public/, skipping installation."
       ohai "The server will work without it or find the source files at runtime."
     end
   end
