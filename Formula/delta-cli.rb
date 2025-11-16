@@ -116,8 +116,8 @@ class DeltaCli < Formula
   end
 
   def post_install
+    # Post-install configuration is optional - don't fail if we can't write to shell config
     begin
-      # Ensure Homebrew bin comes first in PATH to avoid conflicts with llvm's delta
       shell = ENV["SHELL"] || "/bin/zsh"
       shell_config = if shell.include?("zsh")
         File.expand_path("~/.zshrc")
@@ -128,26 +128,39 @@ class DeltaCli < Formula
       end
       
       if shell_config && File.exist?(shell_config)
+        # Check if we have write permission
+        unless File.writable?(shell_config)
+          ohai "Delta CLI installed successfully!"
+          ohai "Note: Could not automatically configure #{shell_config} (permission denied)"
+          ohai "To use 'delta' command, add /opt/homebrew/bin to your PATH or use: /opt/homebrew/bin/delta"
+          return
+        end
+        
         # Check if PATH fix already exists
         path_fix = '# Delta CLI PATH fix - ensure Homebrew bin comes first'
-        unless File.read(shell_config).include?(path_fix)
-          File.open(shell_config, "a") do |f|
-            f.puts "\n#{path_fix}"
-            f.puts 'export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$(echo $PATH | tr ":" "\n" | grep -v "^/opt/homebrew/bin$" | grep -v "^/opt/homebrew/sbin$" | tr "\n" ":" | sed "s/:$//")"'
-            f.puts 'alias delta="/opt/homebrew/bin/delta"  # Delta CLI alias to override llvm delta'
-          end
-          ohai "Added PATH configuration to #{shell_config}"
-          ohai "Run 'source #{shell_config}' or restart your terminal to use 'delta' command"
+        if File.read(shell_config).include?(path_fix)
+          ohai "Delta CLI installed successfully!"
+          ohai "Shell configuration already exists in #{shell_config}"
+          return
         end
+        
+        # Try to append configuration
+        File.open(shell_config, "a") do |f|
+          f.puts "\n#{path_fix}"
+          f.puts 'export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$(echo $PATH | tr ":" "\n" | grep -v "^/opt/homebrew/bin$" | grep -v "^/opt/homebrew/sbin$" | tr "\n" ":" | sed "s/:$//")"'
+          f.puts 'alias delta="/opt/homebrew/bin/delta"  # Delta CLI alias to override llvm delta'
+        end
+        ohai "Delta CLI installed successfully!"
+        ohai "Added PATH configuration to #{shell_config}"
+        ohai "Run 'source #{shell_config}' or restart your terminal to use 'delta' command"
+      else
+        ohai "Delta CLI installed successfully!"
+        ohai "To use 'delta' command, add /opt/homebrew/bin to your PATH or use: /opt/homebrew/bin/delta"
       end
-      
-      ohai "Delta CLI installed successfully!"
-      ohai "To use 'delta' command, run: source #{shell_config}" if shell_config
-      ohai "Or use full path: /opt/homebrew/bin/delta"
     rescue => e
-      # Don't fail installation if post-install step has issues
-      opoo "Post-install configuration had a minor issue: #{e.message}"
-      opoo "Delta CLI is installed and functional. You may need to manually configure your shell."
+      # Silently handle errors - installation is successful even if config fails
+      ohai "Delta CLI installed successfully!"
+      ohai "To use 'delta' command, add /opt/homebrew/bin to your PATH or use: /opt/homebrew/bin/delta"
     end
   end
 
