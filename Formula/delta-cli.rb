@@ -93,7 +93,15 @@ class DeltaCli < Formula
         # Use mkdir_p to ensure the directory exists, then copy files
         webui_dest = share/"delta-cli"/"webui"
         webui_dest.mkpath
-        cp_r Dir.glob("#{public_path}/*"), webui_dest, verbose: false
+        # Copy files individually to avoid issues with glob patterns
+        Dir.glob("#{public_path}/*").each do |file|
+          next if File.directory?(file)
+          FileUtils.cp(file, webui_dest, verbose: false)
+        end
+        # Copy subdirectories recursively
+        Dir.glob("#{public_path}/*/").each do |dir|
+          FileUtils.cp_r(dir, webui_dest, verbose: false)
+        end
         ohai "Delta web UI installed to #{webui_dest}"
       rescue => e
         opoo "Could not install web UI: #{e.message}"
@@ -106,33 +114,39 @@ class DeltaCli < Formula
   end
 
   def post_install
-    # Ensure Homebrew bin comes first in PATH to avoid conflicts with llvm's delta
-    shell = ENV["SHELL"] || "/bin/zsh"
-    shell_config = if shell.include?("zsh")
-      File.expand_path("~/.zshrc")
-    elsif shell.include?("bash")
-      File.expand_path("~/.bash_profile")
-    else
-      nil
-    end
-    
-    if shell_config && File.exist?(shell_config)
-      # Check if PATH fix already exists
-      path_fix = '# Delta CLI PATH fix - ensure Homebrew bin comes first'
-      unless File.read(shell_config).include?(path_fix)
-        File.open(shell_config, "a") do |f|
-          f.puts "\n#{path_fix}"
-          f.puts 'export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$(echo $PATH | tr ":" "\n" | grep -v "^/opt/homebrew/bin$" | grep -v "^/opt/homebrew/sbin$" | tr "\n" ":" | sed "s/:$//")"'
-          f.puts 'alias delta="/opt/homebrew/bin/delta"  # Delta CLI alias to override llvm delta'
-        end
-        ohai "Added PATH configuration to #{shell_config}"
-        ohai "Run 'source #{shell_config}' or restart your terminal to use 'delta' command"
+    begin
+      # Ensure Homebrew bin comes first in PATH to avoid conflicts with llvm's delta
+      shell = ENV["SHELL"] || "/bin/zsh"
+      shell_config = if shell.include?("zsh")
+        File.expand_path("~/.zshrc")
+      elsif shell.include?("bash")
+        File.expand_path("~/.bash_profile")
+      else
+        nil
       end
+      
+      if shell_config && File.exist?(shell_config)
+        # Check if PATH fix already exists
+        path_fix = '# Delta CLI PATH fix - ensure Homebrew bin comes first'
+        unless File.read(shell_config).include?(path_fix)
+          File.open(shell_config, "a") do |f|
+            f.puts "\n#{path_fix}"
+            f.puts 'export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$(echo $PATH | tr ":" "\n" | grep -v "^/opt/homebrew/bin$" | grep -v "^/opt/homebrew/sbin$" | tr "\n" ":" | sed "s/:$//")"'
+            f.puts 'alias delta="/opt/homebrew/bin/delta"  # Delta CLI alias to override llvm delta'
+          end
+          ohai "Added PATH configuration to #{shell_config}"
+          ohai "Run 'source #{shell_config}' or restart your terminal to use 'delta' command"
+        end
+      end
+      
+      ohai "Delta CLI installed successfully!"
+      ohai "To use 'delta' command, run: source #{shell_config}" if shell_config
+      ohai "Or use full path: /opt/homebrew/bin/delta"
+    rescue => e
+      # Don't fail installation if post-install step has issues
+      opoo "Post-install configuration had a minor issue: #{e.message}"
+      opoo "Delta CLI is installed and functional. You may need to manually configure your shell."
     end
-    
-    ohai "Delta CLI installed successfully!"
-    ohai "To use 'delta' command, run: source #{shell_config}" if shell_config
-    ohai "Or use full path: /opt/homebrew/bin/delta"
   end
 
   test do
