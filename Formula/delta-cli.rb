@@ -25,6 +25,9 @@ class DeltaCli < Formula
   end
 
   def install
+    # Store the source directory path
+    source_dir = Dir.pwd
+    
     # Initialize and update only the llama.cpp submodule
     # This is automatic - users don't need to do anything
     system "git", "submodule", "update", "--init", "vendor/llama.cpp"
@@ -50,8 +53,10 @@ class DeltaCli < Formula
         # Build the web UI (outputs to ../public)
         system "npm", "run", "build"
       end
-      cd ".."
     end
+    
+    # Ensure we're back in the source directory
+    Dir.chdir(source_dir)
     
     # Create build directory and build
     # All automatic - users just wait
